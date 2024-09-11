@@ -77,7 +77,11 @@ impl SupabaseClient {
         let inserted: Vec<TrackedWallet> = serde_json::from_str(&body)
             .map_err(|e| AppError::JsonParseError(e.to_string()))?;
 
-        Ok(inserted[0].id.unwrap())
+        let first_wallet = inserted.get(0)
+            .ok_or_else(|| AppError::DatabaseError("No wallet was inserted".to_string()))?;
+
+        first_wallet.id
+            .ok_or_else(|| AppError::DatabaseError("Inserted wallet has no ID".to_string()))
     }
 
     pub async fn archive_tracked_wallet(&self, wallet_address: &str) -> Result<String, AppError> {
@@ -95,7 +99,9 @@ impl SupabaseClient {
 
         let updated: Vec<TrackedWallet> = serde_json::from_str(&body)?;
 
-        Ok(format!("Archived wallet: {}", updated[0].wallet_address))
+        updated.get(0)
+            .ok_or_else(|| AppError::DatabaseError("No wallet was updated".to_string()))
+            .map(|wallet| format!("Archived wallet: {}", wallet.wallet_address))
     }
 
     pub async fn unarchive_tracked_wallet(&self, wallet_address: &str) -> Result<String, AppError> {
@@ -113,7 +119,9 @@ impl SupabaseClient {
 
         let updated: Vec<TrackedWallet> = serde_json::from_str(&body)?;
 
-        Ok(format!("Unarchived wallet: {}", updated[0].wallet_address))
+        updated.get(0)
+            .ok_or_else(|| AppError::DatabaseError("No wallet was updated".to_string()))
+            .map(|wallet| format!("Unarchived wallet: {}", wallet.wallet_address))
     }
 
     pub async fn delete_tracked_wallet(&self, wallet_address: &str) -> Result<String, AppError> {
@@ -146,16 +154,19 @@ impl SupabaseClient {
     pub async fn update_tracked_wallet(&self, mut wallet: TrackedWallet) -> Result<Uuid, AppError> {
         wallet.user_id = Some(self.user_id.clone());
         
+        let wallet_id = wallet.id
+            .ok_or_else(|| AppError::BadRequest("Wallet ID is required for update".to_string()))?;
+        
         let resp = self.client
             .from("tracked_wallets")
             .update(json!({
-                "id": wallet.id,
+                "id": wallet_id,
                 "user_id": wallet.user_id,
                 "wallet_address": wallet.wallet_address,
                 "is_active": wallet.is_active
             }).to_string())
             .eq("user_id", &self.user_id)
-            .eq("id", wallet.id.unwrap().to_string())
+            .eq("id", wallet_id.to_string())
             .execute()
             .await
             .map_err(|e| AppError::PostgrestError(e.to_string()))?;
@@ -165,7 +176,9 @@ impl SupabaseClient {
         
         let updated: Vec<TrackedWallet> = serde_json::from_str(&body)?;
         
-        Ok(updated[0].id.unwrap())
+        updated.get(0)
+            .and_then(|w| w.id)
+            .ok_or_else(|| AppError::DatabaseError("Failed to update wallet".to_string()))
     }
 
     pub async fn get_copy_trade_settings(&self) -> Result<Vec<CopyTradeSettings>, AppError> {
@@ -208,7 +221,9 @@ impl SupabaseClient {
         
         let inserted: Vec<CopyTradeSettings> = serde_json::from_str(&body)?;
 
-        Ok(inserted[0].id.unwrap())
+        inserted.get(0)
+            .and_then(|s| s.id)
+            .ok_or_else(|| AppError::DatabaseError("Failed to create copy trade settings".to_string()))
     }
 
     pub async fn update_copy_trade_settings(&self, settings: CopyTradeSettings) -> Result<Uuid, AppError> {
@@ -224,7 +239,7 @@ impl SupabaseClient {
                 "allow_additional_buys": settings.allow_additional_buys,
                 "match_sell_percentage": settings.match_sell_percentage,
                 "min_sol_balance": settings.min_sol_balance
-            }).to_string()) // Convert JSON to String
+            }).to_string())
             .eq("user_id", &self.user_id)
             .eq("tracked_wallet_id", settings.tracked_wallet_id.to_string())
             .execute()
@@ -236,7 +251,9 @@ impl SupabaseClient {
 
         let updated: Vec<CopyTradeSettings> = serde_json::from_str(&body)?;
 
-        Ok(updated[0].id.unwrap())
+        updated.get(0)
+            .and_then(|s| s.id)
+            .ok_or_else(|| AppError::DatabaseError("Failed to update copy trade settings".to_string()))
     }
 
     pub async fn delete_copy_trade_settings(&self, tracked_wallet_id: Uuid) -> Result<String, AppError> {
@@ -290,6 +307,6 @@ impl SupabaseClient {
     //     let body = resp.text().await
     //         .map_err(|e| AppError::RequestError(e.to_string()))?;
     //     let inserted: Vec<Transaction> = serde_json::from_str(&body)?;
-    //     Ok(inserted[0].id.unwrap())
+    //     Ok(inserted[0].id.unwrap()) //replace this in production
     // }
 }

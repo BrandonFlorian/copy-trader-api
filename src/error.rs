@@ -22,6 +22,15 @@ pub enum AppError {
     #[error("Request error: {0}")]
     RequestError(String),
 
+    #[error("Configuration error: {0}")]
+    ConfigError(String),
+
+    #[error("Server error: {0}")]
+    ServerError(String),
+
+    #[error("Port parse error: {0}")]
+    PortParseError(#[from] std::num::ParseIntError),
+
     // #[error("Not found: {0}")]
     // NotFound(String),
     
@@ -37,6 +46,9 @@ impl IntoResponse for AppError {
             AppError::PostgrestError(message) => (StatusCode::INTERNAL_SERVER_ERROR, message),
             AppError::JsonParseError(message) => (StatusCode::BAD_REQUEST, message),
             AppError::RequestError(message) => (StatusCode::BAD_REQUEST, message),
+            AppError::ConfigError(message) => (StatusCode::BAD_REQUEST, message),
+            AppError::ServerError(message) => (StatusCode::INTERNAL_SERVER_ERROR, message),
+            AppError::PortParseError(err) => (StatusCode::BAD_REQUEST, err.to_string()),
             // AppError::NotFound(message) => (StatusCode::NOT_FOUND, message),
             // AppError::InternalServerError => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string()),
         };

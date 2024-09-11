@@ -7,6 +7,7 @@ use std::env;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use crate::db::SupabaseClient;
+use crate::error::AppError;
 
 mod routes;
 mod models;
@@ -14,13 +15,17 @@ mod db;
 mod error;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), AppError> {
     dotenv().ok();
 
-    let supabase_url = env::var("SUPABASE_URL").expect("SUPABASE_URL must be set");
-    let supabase_service_role_key = env::var("SUPABASE_SERVICE_ROLE_KEY").expect("SUPABASE_SERVICE_ROLE_KEY must be set");
-    let supabase_key = env::var("SUPABASE_API_KEY").expect("SUPABASE_API_KEY must be set");
-    let user_id = env::var("USER_ID").expect("USER_ID must be set");
+    let supabase_url = env::var("SUPABASE_URL")
+        .map_err(|_| AppError::ConfigError("SUPABASE_URL must be set".to_string()))?;
+    let supabase_service_role_key = env::var("SUPABASE_SERVICE_ROLE_KEY")
+        .map_err(|_| AppError::ConfigError("SUPABASE_SERVICE_ROLE_KEY must be set".to_string()))?;
+    let supabase_key = env::var("SUPABASE_API_KEY")
+        .map_err(|_| AppError::ConfigError("SUPABASE_API_KEY must be set".to_string()))?;
+    let user_id = env::var("USER_ID")
+        .map_err(|_| AppError::ConfigError("USER_ID must be set".to_string()))?;
 
     let client = SupabaseClient::new(&supabase_url, &supabase_key, &supabase_service_role_key, &user_id);
 
@@ -39,9 +44,14 @@ async fn main() {
         .with_state(client.clone());
 
     let port = env::var("APP_PORT").unwrap_or_else(|_| "3001".to_string());
-    let addr = SocketAddr::from(([0, 0, 0, 0], port.parse().unwrap()));
+    let addr = SocketAddr::from(([0, 0, 0, 0], port.parse()?));
 
     println!("Server running on {}", addr);
-    let listener = TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    let listener = TcpListener::bind(addr).await
+        .map_err(|e| AppError::ServerError(format!("Failed to bind to address: {}", e)))?;
+    
+    axum::serve(listener, app).await
+        .map_err(|e| AppError::ServerError(format!("Server error: {}", e)))?;
+
+    Ok(())
 }
