@@ -32,9 +32,9 @@ pub struct CopyTradeSettings {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Transaction {
-    pub id: Option<Uuid>,
+    pub id: Uuid,
     pub user_id: String,
-    pub tracked_wallet_id: Uuid,
+    pub tracked_wallet_id: Option<Uuid>,  // Make this field optional
     pub signature: String,
     pub transaction_type: String,
     pub token_address: String,

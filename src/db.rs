@@ -1,8 +1,6 @@
 use postgrest::Postgrest;
 use serde_json::json;
 use uuid::Uuid;
-use reqwest;
-use std::error::Error;
 
 use crate::models::{TrackedWallet, CopyTradeSettings, Transaction};
 use crate::error::AppError;
@@ -13,12 +11,6 @@ impl From<reqwest::Error> for AppError {
     }
 }
 
-impl From<Box<dyn Error>> for AppError {
-    fn from(error: Box<dyn Error>) -> Self {
-        AppError::PostgrestError(error.to_string())
-    }
-}
-
 #[derive(Clone)]
 pub struct SupabaseClient {
     client: Postgrest,
@@ -26,32 +18,45 @@ pub struct SupabaseClient {
 }
 
 impl SupabaseClient {
-    pub fn new(url: &str, api_key: &str, user_id: &str) -> Self {
+    pub fn new(url: &str, api_key: &str, service_role_key: &str, user_id: &str) -> Self {
+        println!("SupabaseClient::new() called");
         let client = Postgrest::new(url)
-            .insert_header("apikey", api_key)
-            .insert_header("Authorization", format!("Bearer {}", api_key));
+            .insert_header("apikey", service_role_key)
+            .insert_header("Authorization", format!("Bearer {}", service_role_key));
         
         Self {
             client,
             user_id: user_id.to_string(),
         }
+        
     }
 
-    pub async fn get_tracked_wallets(&self) -> Result<Vec<TrackedWallet>, AppError> {
-        let resp = self.client
-            .from("tracked_wallets")
-            .select("*")
-            .eq("user_id", &self.user_id)
-            .execute()
-            .await
-            .map_err(|e| AppError::PostgrestError(e.to_string()))?;
+//WORKING
+pub async fn get_tracked_wallets(&self) -> Result<Vec<TrackedWallet>, AppError> {
+    println!("get_tracked_wallets() called");
+    let resp = self.client
+        .from("tracked_wallets")
+        .select("*")
+        .eq("user_id", &self.user_id)
+        .execute()
+        .await
+        .map_err(|e| AppError::PostgrestError(e.to_string()))?;
 
-        let body = resp.text().await
-            .map_err(|e| AppError::RequestError(e.to_string()))?;
+    let body = resp.text().await
+        .map_err(|e| AppError::RequestError(e.to_string()))?;
 
-        serde_json::from_str(&body)
-            .map_err(|e| AppError::JsonParseError(e.to_string()))
+    // Parse the response as a JSON array
+    let wallets: Vec<TrackedWallet> = serde_json::from_str(&body)
+        .map_err(|e| AppError::JsonParseError(format!("Failed to parse wallets: {}", e)))?;
+
+    if wallets.is_empty() {
+        println!("No wallets found");
+    } else {
+        println!("Found wallets: {:?}", wallets);
     }
+
+    Ok(wallets)
+}
 
     pub async fn add_tracked_wallet(&self, wallet: TrackedWallet) -> Result<Uuid, AppError> {
         let insert_data = serde_json::json!({
@@ -59,22 +64,24 @@ impl SupabaseClient {
             "wallet_address": wallet.wallet_address,
             "is_active": wallet.is_active
         });
-
+        println!("add_tracked_wallet() insert_data: {:?}", insert_data);
         let resp = self.client
             .from("tracked_wallets")
             .insert(insert_data.to_string())
             .execute()
             .await
             .map_err(|e| AppError::PostgrestError(e.to_string()))?;
-
+        println!("add_tracked_wallet() response: {:?}", resp);
         let body = resp.text().await
             .map_err(|e| AppError::RequestError(e.to_string()))?;
-
+        println!("add_tracked_wallet() body: {}", body);
         let inserted: Vec<TrackedWallet> = serde_json::from_str(&body)
             .map_err(|e| AppError::JsonParseError(e.to_string()))?;
+        println!("add_tracked_wallet() inserted: {:?}", inserted);
         Ok(inserted[0].id.unwrap())
     }
 
+    //WORKING
     pub async fn archive_tracked_wallet(&self, wallet_address: &str) -> Result<String, AppError> {
         let resp = self.client
             .from("tracked_wallets")
@@ -87,10 +94,13 @@ impl SupabaseClient {
 
         let body = resp.text().await
             .map_err(|e| AppError::RequestError(e.to_string()))?;
+
         let updated: Vec<TrackedWallet> = serde_json::from_str(&body)?;
+
         Ok(format!("Archived wallet: {}", updated[0].wallet_address))
     }
 
+    //WORKING
     pub async fn unarchive_tracked_wallet(&self, wallet_address: &str) -> Result<String, AppError> {
         let resp = self.client
             .from("tracked_wallets")
@@ -99,14 +109,17 @@ impl SupabaseClient {
             .eq("wallet_address", wallet_address)
             .execute()
             .await
-            .map_err(|e| AppError::PostgrestError(e.to_string()))?;
+            .map_err(|e| AppError::PostgrestError(e.to_string()))?; 
 
         let body = resp.text().await
             .map_err(|e| AppError::RequestError(e.to_string()))?;
+
         let updated: Vec<TrackedWallet> = serde_json::from_str(&body)?;
+
         Ok(format!("Unarchived wallet: {}", updated[0].wallet_address))
     }
 
+    //WORKING
     pub async fn delete_tracked_wallet(&self, wallet_address: &str) -> Result<String, AppError> {
         let resp = self.client
             .from("tracked_wallets")
@@ -116,10 +129,22 @@ impl SupabaseClient {
             .execute()
             .await
             .map_err(|e| AppError::PostgrestError(e.to_string()))?;
-        if resp.status() == 204 {
-            Ok("Tracked wallet deleted successfully".to_string())
+
+        if resp.status().is_success() {
+            let body = resp.text().await
+                .map_err(|e| AppError::RequestError(e.to_string()))?;
+            
+            // Parse the response body as JSON
+            let deleted_items: Vec<serde_json::Value> = serde_json::from_str(&body)
+                .map_err(|e| AppError::JsonParseError(e.to_string()))?;
+            
+            if deleted_items.is_empty() {
+                Err(AppError::DatabaseError("No wallet found to delete".to_string()))
+            } else {
+                Ok(format!("{} tracked wallet(s) deleted successfully", deleted_items.len()))
+            }
         } else {
-            Err(AppError::DatabaseError("Failed to delete tracked wallet".to_string()))
+            Err(AppError::DatabaseError(format!("Failed to delete tracked wallet. Status: {}", resp.status())))
         }
     }
 
@@ -141,6 +166,7 @@ impl SupabaseClient {
         Ok(updated[0].id.unwrap())
     }
 
+    //WORKING
     pub async fn get_copy_trade_settings(&self) -> Result<Vec<CopyTradeSettings>, AppError> {
         let resp = self.client
             .from("copy_trade_settings")
@@ -175,10 +201,14 @@ impl SupabaseClient {
             .execute()
             .await
             .map_err(|e| AppError::PostgrestError(e.to_string()))?;
+        println!("create_copy_trade_settings() response: {:?}", resp);
 
         let body = resp.text().await
             .map_err(|e| AppError::RequestError(e.to_string()))?;
+        println!("create_copy_trade_settings() body: {}", body);
         let inserted: Vec<CopyTradeSettings> = serde_json::from_str(&body)?;
+        println!("create_copy_trade_settings() inserted: {:?}", inserted);
+
         Ok(inserted[0].id.unwrap())
     }
 
@@ -201,10 +231,12 @@ impl SupabaseClient {
             .execute()
             .await
             .map_err(|e| AppError::PostgrestError(e.to_string()))?;
-
+        println!("update_copy_trade_settings() response: {:?}", resp);
         let body = resp.text().await
             .map_err(|e| AppError::RequestError(e.to_string()))?;
+        println!("update_copy_trade_settings() body: {}", body);
         let updated: Vec<CopyTradeSettings> = serde_json::from_str(&body)?;
+        println!("update_copy_trade_settings() updated: {:?}", updated);
         Ok(updated[0].id.unwrap())
     }
 
@@ -218,6 +250,8 @@ impl SupabaseClient {
             .await
             .map_err(|e| AppError::PostgrestError(e.to_string()))?;
 
+        println!("delete_copy_trade_settings() response: {:?}", resp);
+
         if resp.status() == 204 {
             Ok("Copy trade settings deleted successfully".to_string())
         } else {
@@ -225,20 +259,25 @@ impl SupabaseClient {
         }
     }
 
-    pub async fn get_transaction_history(&self) -> Result<Vec<Transaction>, AppError> {
-        let resp = self.client
-            .from("transactions")
-            .select("*")
-            .eq("user_id", &self.user_id)
-            .execute()
-            .await
-            .map_err(|e| AppError::PostgrestError(e.to_string()))?;
+    //WORKING
+pub async fn get_transaction_history(&self) -> Result<Vec<Transaction>, AppError> {
+    println!("get_transaction_history() called");
+    let resp = self.client
+        .from("transactions")
+        .select("*")
+        .eq("user_id", &self.user_id)
+        .execute()
+        .await
+        .map_err(|e| AppError::PostgrestError(e.to_string()))?;
 
-        let body = resp.text().await
-            .map_err(|e| AppError::RequestError(e.to_string()))?;
-        let transactions: Vec<Transaction> = serde_json::from_str(&body)?;
-        Ok(transactions)
-    }
+    let body = resp.text().await
+        .map_err(|e| AppError::RequestError(e.to_string()))?;
+
+    let transactions: Vec<Transaction> = serde_json::from_str(&body)
+        .map_err(|e| AppError::JsonParseError(format!("Failed to parse transactions: {}", e)))?;
+
+    Ok(transactions)
+}
 
     // pub async fn log_transaction(&self, transaction: Transaction) -> Result<Uuid, AppError> {
     //     let resp = self.client
