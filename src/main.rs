@@ -25,7 +25,7 @@ async fn main() {
     let client = SupabaseClient::new(&supabase_url, &supabase_key, &supabase_service_role_key, &user_id);
 
     let app = Router::new()
-        .route("/tracked_wallets", get(routes::handle_get_tracked_wallets))
+        .route("/tracked_wallets", get(routes::get_tracked_wallets))
         .route("/tracked_wallets", post(routes::add_tracked_wallet))
         .route("/tracked_wallets/archive/:wallet_address", put(routes::archive_tracked_wallet))
         .route("/tracked_wallets/unarchive/:wallet_address", put(routes::unarchive_tracked_wallet))
@@ -35,7 +35,7 @@ async fn main() {
         .route("/copy_trade_settings", post(routes::create_copy_trade_settings))
         .route("/copy_trade_settings", put(routes::update_copy_trade_settings))
         .route("/copy_trade_settings/:tracked_wallet_id", delete(routes::delete_copy_trade_settings))
-        .route("/transaction_history", get(routes::handle_get_transaction_history))
+        .route("/transaction_history", get(routes::get_transaction_history))
         .with_state(client.clone());
 
     let port = env::var("APP_PORT").unwrap_or_else(|_| "3001".to_string());

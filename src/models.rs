@@ -5,7 +5,7 @@ use chrono::{DateTime, Utc};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TrackedWallet {
     pub id: Option<Uuid>,
-    pub user_id: String,
+    pub user_id: Option<String>,
     pub wallet_address: String,
     pub is_active: bool,
     pub created_at: Option<DateTime<Utc>>,
@@ -15,7 +15,7 @@ pub struct TrackedWallet {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CopyTradeSettings {
     pub id: Option<Uuid>,
-    pub user_id: String,
+    pub user_id: Option<String>,
     pub tracked_wallet_id: Uuid,
     pub is_enabled: bool,
     pub trade_amount_sol: f64,
@@ -34,7 +34,7 @@ pub struct CopyTradeSettings {
 pub struct Transaction {
     pub id: Uuid,
     pub user_id: String,
-    pub tracked_wallet_id: Option<Uuid>,  // Make this field optional
+    pub tracked_wallet_id: Option<Uuid>,
     pub signature: String,
     pub transaction_type: String,
     pub token_address: String,

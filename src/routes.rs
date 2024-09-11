@@ -9,8 +9,7 @@ use crate::db::SupabaseClient;
 use crate::models::{TrackedWallet, CopyTradeSettings, Transaction};
 use crate::error::AppError;
 
-//WORKING
-pub async fn handle_get_tracked_wallets(
+pub async fn get_tracked_wallets(
     State(client): State<SupabaseClient>,
 ) -> Result<Json<Vec<TrackedWallet>>, AppError> {
     let wallets = client.get_tracked_wallets().await?;
@@ -25,7 +24,6 @@ pub async fn add_tracked_wallet(
     Ok(Json(json!({ "success": true, "tracked_wallet_id": result })))
 }
 
-//WORKING
 pub async fn archive_tracked_wallet(
     State(client): State<SupabaseClient>,
     Path(wallet_address): Path<String>,
@@ -34,7 +32,6 @@ pub async fn archive_tracked_wallet(
     Ok(Json(json!({ "success": true, "message": result })))
 }
 
-//WORKING
 pub async fn unarchive_tracked_wallet(
     State(client): State<SupabaseClient>,
     Path(wallet_address): Path<String>,
@@ -55,11 +52,12 @@ pub async fn update_tracked_wallet(
     State(client): State<SupabaseClient>,
     Json(update): Json<TrackedWallet>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    println!("update_tracked_wallet() called");
     let result = client.update_tracked_wallet(update).await?;
-    Ok(Json(json!({ "success": true, "new_tracked_wallet_id": result })))
+    println!("update_tracked_wallet() result: {:?}", result);
+    Ok(Json(json!({ "success": true, "tracked_wallet_id": result })))
 }
 
-//WORKING
 pub async fn get_copy_trade_settings(
     State(client): State<SupabaseClient>,
 ) -> Result<Json<Vec<CopyTradeSettings>>, AppError> {
@@ -91,7 +89,7 @@ pub async fn delete_copy_trade_settings(
     Ok(Json(json!({ "success": true, "message": result })))
 }
 
-pub async fn handle_get_transaction_history(
+pub async fn get_transaction_history(
     State(client): State<SupabaseClient>,
 ) -> Result<Json<Vec<Transaction>>, AppError> {
     let transactions = client.get_transaction_history().await?;

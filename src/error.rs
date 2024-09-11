@@ -9,35 +9,36 @@ pub enum AppError {
     #[error("Database error: {0}")]
     DatabaseError(String),
 
-    // #[error("Not found: {0}")]
-    // NotFound(String),
-
     #[error("Bad request: {0}")]
     BadRequest(String),
 
-    // #[error("Internal server error")]
-    // InternalServerError,
-
+    
     #[error("Postgrest error: {0}")]
     PostgrestError(String),
-
+    
     #[error("Json parse error: {0}")]
     JsonParseError(String),
-
+    
     #[error("Request error: {0}")]
-    RequestError(String), // Add this line
+    RequestError(String),
+
+    // #[error("Not found: {0}")]
+    // NotFound(String),
+    
+    // #[error("Internal server error")]
+    // InternalServerError,
 }
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, error_message) = match self {
             AppError::DatabaseError(message) => (StatusCode::INTERNAL_SERVER_ERROR, message),
-            // AppError::NotFound(message) => (StatusCode::NOT_FOUND, message),
             AppError::BadRequest(message) => (StatusCode::BAD_REQUEST, message),
-            // AppError::InternalServerError => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string()),
             AppError::PostgrestError(message) => (StatusCode::INTERNAL_SERVER_ERROR, message),
             AppError::JsonParseError(message) => (StatusCode::BAD_REQUEST, message),
             AppError::RequestError(message) => (StatusCode::BAD_REQUEST, message),
+            // AppError::NotFound(message) => (StatusCode::NOT_FOUND, message),
+            // AppError::InternalServerError => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string()),
         };
 
         (status, error_message).into_response()
