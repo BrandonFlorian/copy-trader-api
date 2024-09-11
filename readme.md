@@ -4,6 +4,10 @@ This is a WIP Rust-based implementation of an existing API that I use in one of 
 
 I am still learning Rust (and using this as a way to do so!) but eventually I do plan to convert the bot as well.
 
+In the python server, to prevent a private key from being exposed, the wallet secret key is set in the .env file and then we derive the address from that. In this Rust version, we are not yet doing any logic that would require a private key, but we do need the address so it needs to be set in the .env file.
+
+Please note that this is a work in progress and the API will be expanded upon as the repo is converted to Rust.
+
 ## Features
 
 - At this time you can only interact with the Supabase db.
@@ -33,6 +37,7 @@ I am still learning Rust (and using this as a way to do so!) but eventually I do
    ```
    SUPABASE_URL=your_supabase_project_url
    SUPABASE_API_KEY=your_supabase_api_key
+   SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
    USER_ID=default_user_id
    APP_PORT=3001
    ```
